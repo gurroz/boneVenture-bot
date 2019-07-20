@@ -9,25 +9,25 @@ const ccxt      = require ('./node_modules/ccxt/ccxt.js')
     , keysGlobal = 'keys.json'
     , keysLocal = 'keys.local.json'
     , keysFile = fs.existsSync (keysLocal) ? keysLocal : (fs.existsSync (keysGlobal) ? keysGlobal : false)
-    , config = keysFile ? require ('../../' + keysFile) : {}
+    , config = keysFile ? require ('../../' + keysFile) : {};
 
 let printSupportedExchanges = function () {
     log ('Supported exchanges:', ccxt.exchanges.join (', ').green)
-}
+};
 
 let printUsage = function () {
-    log ('Usage: node', process.argv[1], 'id1'.green, 'id2'.yellow, 'id3'.blue, '...')
+    log ('Usage: node', process.argv[1], 'id1'.green, 'id2'.yellow, 'id3'.blue, '...');
     printSupportedExchanges ()
-}
+};
 
 let printExchangeSymbolsAndMarkets = function (exchange) {
-    log (getExchangeSymbols (exchange))
+    log (getExchangeSymbols (exchange));
     log (getExchangeMarketsTable (exchange))
-}
+};
 
 let getExchangeMarketsTable = (exchange) => {
     return asTable.configure ({ delimiter: ' | ' }) (Object.values (markets))
-}
+};
 
 let sleep = (ms) => new Promise (resolve => setTimeout (resolve, ms));
 
@@ -35,43 +35,45 @@ let proxies = [
         '', // no proxy by default
         'https://crossorigin.me/',
         'https://cors-anywhere.herokuapp.com/',
-    ]
+    ];
 
-;(async function main () {
-
+(async function main() {
     if (process.argv.length > 3) {
 
-        let ids = process.argv.slice (2)
-        let exchanges = {}
+        // MARKETS FETCH
 
-        log (ids.join (', ').yellow)
+        let ids = process.argv.slice (2);
+        let exchanges = {};
+
+        log (ids.join (', ').yellow);
 
         // load all markets from all exchanges
         for (let id of ids) {
 
-            let settings = config[id] || {}
+            let settings = config[id] || {};
 
             // instantiate the exchange by id
             let exchange = new ccxt[id] (ccxt.extend ({
+             'enableRateLimit': true
                 // verbose,
                 // 'proxy': 'https://cors-anywhere.herokuapp.com/',
-            }, settings))
+            }, settings));
 
             // save it in a dictionary under its id for future use
-            exchanges[id] = exchange
+            exchanges[id] = exchange;
 
             // load all markets from the exchange
-            let markets = await exchange.loadMarkets ()
+            let markets = await exchange.loadMarkets ();
 
             // basic round-robin proxy scheduler
-            let currentProxy = 0
-            let maxRetries   = proxies.length
+            let currentProxy = 0;
+            let maxRetries   = proxies.length;
 
             for (let numRetries = 0; numRetries < maxRetries; numRetries++) {
 
                 try { // try to load exchange markets using current proxy
 
-                    exchange.proxy = proxies[currentProxy]
+                    exchange.proxy = proxies[currentProxy];
                     await exchange.loadMarkets ()
 
                 } catch (e) { // rotate proxies in case of connectivity errors, catch all other exceptions
@@ -99,37 +101,52 @@ let proxies = [
             log (id.green, 'loaded', exchange.symbols.length.toString ().green, 'markets')
         }
 
-        log ('Loaded all markets'.green)
+        log ('Loaded all markets'.green);
 
         // get all unique symbols
-        let uniqueSymbols = ccxt.unique (ccxt.flatten (ids.map (id => exchanges[id].symbols)))
+        let uniqueSymbols = ccxt.unique (ccxt.flatten (ids.map (id => exchanges[id].symbols)));
 
         // filter out symbols that are not present on at least two exchanges
         let arbitrableSymbols = uniqueSymbols
             .filter (symbol =>
                 ids.filter (id =>
                     (exchanges[id].symbols.indexOf (symbol) >= 0)).length > 1)
-            .sort ((id1, id2) => (id1 > id2) ? 1 : ((id2 > id1) ? -1 : 0))
+            .sort ((id1, id2) => (id1 > id2) ? 1 : ((id2 > id1) ? -1 : 0));
 
         log(arbitrableSymbols);
 
+
         // print a table of arbitrable symbols
         let table = arbitrableSymbols.map (symbol => {
-            let row = { symbol }
+            let row = { symbol };
             for (let id of ids)
                 if (exchanges[id].symbols.indexOf (symbol) >= 0)
-                    row[id] = id
+                    row[id] = id;
             return row
-        })
+        });
 
-        log (asTable.configure ({ delimiter: ' | ' }) (table))
+        log (asTable.configure ({ delimiter: ' | ' }) (table));
+
+        // PRICES FETCH
+
+        // JavaScript
+        for(let symbol of arbitrableSymbols) {
+            console.log ('Fetching for symbol', symbol);
+            for (let id of ids) {
+                let currentExchange = exchanges[id];
+                let orderbook = await currentExchange.fetchOrderBook (symbol);
+                let bid = orderbook.bids.length ? orderbook.bids[0][0] : undefined;
+                let ask = orderbook.asks.length ? orderbook.asks[0][0] : undefined;
+                let spread = (bid && ask) ? ask - bid : undefined;
+                console.log (currentExchange.id, 'market price', { bid, ask, spread });
+            }
+        }
+
 
     } else {
-
         printUsage ()
-
     }
 
     process.exit ()
 
-}) ()
+}) ();
