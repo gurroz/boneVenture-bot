@@ -3,18 +3,6 @@
   "version": "0.0.0",
   "private": true,
   "main": "app.js",
-  "cloud-repo-tools": {
-    "requiresKeyFile": true,
-    "requiresProjectId": true,
-    "test": {
-      "app": {
-        "args": [
-          "app.js"
-        ],
-        "msg": "Bookshelf - Node.js on Google Cloud Platform"
-      }
-    }
-  },
   "scripts": {
     "start": "node app.js",
     "test": "repo-tools test app && ava -t 30s --tap test/*.test.js",
@@ -28,11 +16,12 @@
     "debug": "~2.6.9",
     "express": "^4.17.1",
     "http-errors": "~1.6.2",
-    "jade": "~1.11.0",
     "lodash": "^4.17.11",
     "morgan": "~1.9.0",
     "multer": "^1.4.1",
     "nconf": "^0.10.0",
-    "node": "^12.6.0"
+    "node": "^12.6.0",
+    "npm": "^6.10.2",
+    "pug": "^2.0.4"
   }
 }

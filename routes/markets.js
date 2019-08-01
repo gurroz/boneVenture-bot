@@ -2,7 +2,7 @@
 
 const express = require('express');
 const bodyParser = require('body-parser');
-const model = require('../model-datastore');
+const model = require('../daos/config-dao');
 
 const router = express.Router();
 
@@ -30,15 +30,8 @@ router.get('/', (req, res, next) => {
 });
 
 
-router.get('/add', (req, res) => {
-    res.render('books/form.pug', {
-        book: {},
-        action: 'Add',
-    });
-});
-
 router.post('/add', (req, res, next) => {
-    const data = req.body;
+    const data = createMarkets();
 
     // Save the data to the database.
     model.create(data, (err, savedData) => {
@@ -49,5 +42,12 @@ router.post('/add', (req, res, next) => {
         res.redirect(`${req.baseUrl}/${savedData.id}`);
     });
 });
+
+const createMarkets = () => {
+  let buda = {
+      'buda': '',
+
+  }
+};
 
 module.exports = router;

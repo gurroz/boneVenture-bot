@@ -43,7 +43,7 @@ router.get('/', function(req, res, next) {
     getMarkets();
 });
 
-getMarkets = () => {
+async function getMarkets() {
 
     // MARKETS FETCH
 
