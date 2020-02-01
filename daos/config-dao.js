@@ -15,9 +15,8 @@ const create = conf => {
 
 function list(limit) {
     const q = ds
-        .createQuery([kind])
+        .createQuery(kind)
         .limit(limit)
-        .order('id')
         ;
 
     return ds.runQuery(q);
