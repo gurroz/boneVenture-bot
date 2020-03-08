@@ -97,12 +97,12 @@ let proxies = [
             console.log("marketConfig  are", marketConfig);
 
             // MARKETS FETCH
-            let ids = marketConfig.map(conf => conf.code);
+            let marketsIds = marketConfig.map(conf => conf.code);
             let exchanges = await this.updateMarketConfiguration(entities, marketConfig);
 
             // console.log("Exchanges getArbitrateCoins", exchanges);
             // get all unique symbols && filters unwanted coins
-            let uniqueSymbols = ccxt.unique(ccxt.flatten(ids.map(id => exchanges[id].symbols)))
+            let uniqueSymbols = ccxt.unique(ccxt.flatten(marketsIds.map(id => exchanges[id].symbols)))
                 .filter(sym => {
                     return blackListCoins.filter(blockedCoin => sym.indexOf(blockedCoin) >= 0).length === 0
                         && whiteListCoins.filter(acceptedCoin => sym.indexOf(acceptedCoin) >= 0).length > 0;
@@ -112,7 +112,7 @@ let proxies = [
             // filter out symbols that are not present on at least two exchanges
             let arbitrableSymbols = uniqueSymbols
                 .filter(symbol =>
-                    ids.filter(id => (exchanges[id].symbols.indexOf(symbol) >= 0)).length > 1)
+                    marketsIds.filter(id => (exchanges[id].symbols.indexOf(symbol) >= 0)).length > 1)
                 .sort((id1, id2) => (id1 > id2) ? 1 : ((id2 > id1) ? -1 : 0));
 
             console.log("getArbitrateCoins arbitrableSymbols", arbitrableSymbols);
@@ -121,7 +121,7 @@ let proxies = [
             // print a table of arbitrable symbols
             let table = arbitrableSymbols.map(symbol => {
                 let row = {symbol};
-                for (let id of ids)
+                for (let id of marketsIds)
                     if (exchanges[id].symbols.indexOf(symbol) >= 0)
                         row[id] = id;
                 return row
@@ -131,15 +131,16 @@ let proxies = [
 
             // PRICES FETCH
             let pricesTable = [];
+            let historicTable = [];
+
             for (let symbol of arbitrableSymbols) {
                 console.log('Fetching for symbol', symbol);
-                for (let id of ids) {
+                for (let id of marketsIds) {
                     let currentExchange = exchanges[id];
                     try {
-                        console.log('Exchanges info', currentExchange.fees);
 
+                        // CURRENT PRICE
                         let orderbook = await currentExchange.fetchOrderBook(symbol);
-
                         let bid = orderbook.bids.length ? orderbook.bids[0][0] : undefined;
                         let bidAmount =  orderbook.bids.length ? orderbook.bids[0][1]  : undefined;
                         let ask = orderbook.asks.length ? orderbook.asks[0][0] : undefined;
@@ -147,9 +148,43 @@ let proxies = [
 
                         let spread = (bid && ask) ? ask - bid : undefined;
 
-                        console.log(currentExchange.id, 'market price', {bid, ask, spread, bidAmount, asksAmount});
-                        let uniqueCode = currentExchange.id + "/" +symbol;
-                        pricesTable.push({uniqueCode, bid, ask, spread});
+                        let takerFee = currentExchange.markets[symbol]['taker'];
+                        let makerFee = currentExchange.markets[symbol]['maker'];
+
+
+                        let buyTaker = (1 - takerFee) * ask;
+                        let buyMaker = (1 - makerFee) * ask;
+
+                        let buyPrices = buyTaker + "/" + buyMaker;
+
+                        let sellTaker = (1 - takerFee) * bid;
+                        let sellMaker = (1 - makerFee) * bid;
+
+                        let sellPrices = sellTaker + "/" + sellMaker;
+
+
+                        let id = currentExchange.id + "/" +symbol;
+                        let exchangeId = currentExchange.id;
+                        pricesTable.push({exchangeId, symbol, bid, ask, spread, bidAmount, asksAmount, takerFee, makerFee, buyPrices, sellPrices});
+
+
+                        // HISTORIC CANDLESTICKS
+                        let sleep = (ms) => new Promise (resolve => setTimeout (resolve, ms));
+                        if (currentExchange.has.fetchOHLCV) {
+                            await sleep (currentExchange.rateLimit) // milliseconds
+                            let resp = await currentExchange.fetchOHLCV (symbol, '1m');
+                            for(let histo of resp) {
+
+                                let time = histo[0];
+                                let openPrice = histo[1];
+                                let highestPrice = histo[2];
+                                let lowestPrice = histo[3];
+                                let closingPrice = histo[4];
+                                let volume = histo[5];
+
+                                historicTable.push({exchangeId, symbol, time, openPrice, highestPrice, lowestPrice, closingPrice, volume});
+                            }
+                        }
                     } catch (e) {
                         console.log("fetchOrderBook " + e);
                     }
@@ -160,15 +195,10 @@ let proxies = [
             console.log("Prices table");
             console.log(asTable.configure({delimiter: ' | '})(pricesTable));
 
+            console.log("Historic Tickers table");
+            console.log(asTable.configure({delimiter: ' | '})(historicTable));
 
-            // await marketsDao.list(10, async (err, exchanges, cursor) => {
-            //     if (err) {
-            //         console.log("Error getArbitrateCoins ", err);
-            //         return;
-            //   }
-            // });
-
-            console.log("** Finishing getArbitrateCoins ");
+            console.log("** Finishing getArbitrateCoins  v1");
 
         }
 };

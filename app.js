@@ -14,7 +14,7 @@ var configRouter = require('./routes/config');
 var app = express();
 app.disable('etag');
 app.set('trust proxy', true);
-app.set('views', path.join(__dirname, 'views'));
+// app.set('views', path.join(__dirname, 'views'));
 app.set('view engine', 'jade');
 
 app.use(logger('dev'));
